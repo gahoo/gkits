@@ -23,8 +23,9 @@ load_RegulatoryFeatureActivity <- function(regulatory_activity_gff){
   lung_regulatory <- lung_regulatory[idx,]
   lung_regulatory <- keepSeqlevels(lung_regulatory, seqlevels(lung_regulatory)[1:24])
   seqlevels(lung_regulatory) <- paste0('chr', seqlevels(lung_regulatory))
-  mcols(lung_regulatory)$id <- mcols(lung_regulatory)$type
-  mcols(lung_regulatory)$group <- mcols(lung_regulatory)$activity
+  mcols(lung_regulatory)$id <- mcols(lung_regulatory)$regulatory_feature_stable_id
+  mcols(lung_regulatory)$group <- mcols(lung_regulatory)$feature_type
+  mcols(lung_regulatory)$feature <- mcols(lung_regulatory)$activity
   lung_regulatory
 }
 
@@ -163,12 +164,12 @@ get_CpG_tracks <- function(CpG_region, track_list=c('beta', 'log10FDR', 'log10Ra
 
   if('log10FDR' %in% track_list){
     mcols(CpG_region) <- diff_meth[names(CpG_region), 'log10FDR']
-    tracks[['log10FDR']] <- DataTrack(CpG_region, name = '-log10(P)', type='p')
+    tracks[['log10FDR']] <- DataTrack(CpG_region, name = '-log10(P)', type='p', col='darkred')
   }
 
   if('log10Rank' %in% track_list){
     mcols(CpG_region) <- diff_meth[names(CpG_region), 'log10Rank']
-    tracks[['log10Rank']] <- DataTrack(CpG_region, name = '-log10(Rank)', type='p')
+    tracks[['log10Rank']] <- DataTrack(CpG_region, name = '-log10(Rank)', type='p', col='orange')
   }
 
   tracks[['CpG']] <- AnnotationTrack(
@@ -183,18 +184,17 @@ get_CpG_tracks <- function(CpG_region, track_list=c('beta', 'log10FDR', 'log10Ra
 }
 
 get_regulatory_track <- function(regulatory_region, name){
-  colormap <- c(ACTIVE = 'darkgreen', INACTIVE = 'darkgrey',
-                POISED = 'darkblue', REPRESSED = 'darkred')
   AnnotationTrack(
     regulatory_region, name=name,
     featureAnnotation = "id",
     groupAnnotation = 'group',
-    stacking = 'squish',
+    stacking = 'dense',
     mergeGroups = F,
     showOverplotting = F,
-    showFeatureId = TRUE,
+    showFeatureId = F,
     cex.feature = 0.5,
-    fill = colormap[regulatory_region$group],
+    ACTIVE = 'darkgreen', INACTIVE = 'darkgrey',
+    POISED = 'darkblue', REPRESSED = 'darkred',
     shape = "box")
 }
 
@@ -274,7 +274,7 @@ plotRegion <- function(
   if('activity' %in% track_list){
     regulatory_region <- lapply(
       regulatory_activity[activity.organ], function(x){
-        subsetByOverlaps(x, CpG_region)})
+        subsetByOverlaps(x, query_region)})
     idx <- sapply(regulatory_region, length) > 0
     regions[['regulatory_activity']] <- regulatory_region <- regulatory_region[idx]
 
@@ -282,6 +282,9 @@ plotRegion <- function(
       names(regulatory_region), function(x){
         get_regulatory_track(regulatory_region[[x]], x)
         })
+    names(regulatory_tracks) <- names(regulatory_region)
+    idx_pos <- which(track_list == 'activity')
+    track_list <- append(track_list, activity.organ, after = idx_pos)[-idx_pos]
     tracks <- c(tracks, regulatory_tracks)
   }
 
@@ -301,7 +304,7 @@ plotRegion <- function(
         stacking = 'squish',
         mergeGroups = F,
         showOverplotting = T,
-        showFeatureId = TRUE,
+        showFeatureId = F,
         cex.feature = 0.5,
         shape = "box")
     }
